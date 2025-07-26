@@ -181,6 +181,43 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Database setup endpoint - run this once to create tables
+app.post('/api/setup-database', async (req, res) => {
+  try {
+    // Create companies table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS companies (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        subdomain VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Add company_id column to vehicle_entries if it doesn't exist
+    await pool.query(`
+      ALTER TABLE vehicle_entries ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id)
+    `);
+
+    res.json({ success: true, message: 'Database tables created successfully' });
+  } catch (err) {
+    console.error('Database setup error:', err);
+    res.status(500).json({ success: false, message: 'Database setup failed', error: err.message });
+  }
+});
+
 // Middleware to protect admin routes
 function requireAdminAuth(req, res, next) {
   const auth = req.headers.authorization;
